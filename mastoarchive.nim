@@ -16,11 +16,18 @@ type
     rand, loop, toot
 
 type
+  AttachmentData = object
+    `type`: string
+    mediaType: string
+    url: string
+    name: string
+
   TootObjectData = object
     id: string
     content: string
     inReplyTo: Option[string]
     summary: Option[string]
+    attachment: seq[AttachmentData]
 
   TootData = object
     published: string
@@ -75,8 +82,15 @@ proc show(toot: Toot) =
 
       echo "id: ", data.id
       data.summary.map(proc(cw: string) = echo "cw: ", cw)
+
       for para in contentHtml:
         echo para.innerText
+
+      if data.attachment.len > 0:
+        echo "attachments:"
+      for att in data.attachment:
+        echo "- description: ", att.name, "; url: ", att.url
+
       data.inReplyTo.map(proc(r: string) = echo "in reply to: ", r)
     of tkBoost:
       echo "boosted: ", obj.boostedUrl
