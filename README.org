@@ -1,0 +1,7 @@
+#+title: Mastoarchive
+#+author: Luiz Romário Santana Rios
+
+Mastodon archive reader
+
+Note: I did this purely for fun. It works but it shouldn't be used in production
+(whatever that would be)
