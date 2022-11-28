@@ -3,6 +3,7 @@ import std/json
 import std/htmlparser
 import std/options
 import std/random
+import std/sequtils
 import std/strutils
 import std/xmltree
 
@@ -13,7 +14,7 @@ proc assertInit(success: bool, errMsg: string) =
 
 type
   OpenMode = enum
-    rand, loop, toot
+    rand, loop, toot, tootrange
 
 type
   AttachmentData = object
@@ -97,24 +98,34 @@ proc show(toot: Toot) =
   echo "at: ", toot.published
   echo "======"
 
+let
+  usageText = "usage: " & paramStr(0) &
+    " [rand|loop|toot <tootNum>|tootrange <from>-<to>] " &
+    "<path to archive dir>"
+
 # ===
 
 randomize()
 
-assertInit(paramCount() == 2 or paramCount() == 3,
-  "usage: " & paramStr(0) & " [rand|loop|toot <tootNum>] <path to archive dir>")
+assertInit(paramCount() == 2 or paramCount() == 3, usageText)
 
 let openModeStr = paramStr(1)
 let openMode =
   case toLowerAscii(openModeStr):
-    of "rand": rand
-    of "loop": loop
-    of "toot": toot
-    else: raise newException(ValueError, "invalid mode " & openModeStr)
+    of "rand": some(rand)
+    of "loop": some(loop)
+    of "toot": some(toot)
+    of "tootrange": some(tootrange)
+    else: none(OpenMode)
+
+assertInit(
+  openMode.isSome,
+  "error: invalid mode " & openModeStr & "\n" & usageText)
 
 let archiveDir = paramStr(
-  case openMode:
+  case openMode.get():
     of toot: 3
+    of tootrange: 3
     else: 2
 )
 
@@ -124,7 +135,7 @@ assertInit(dirExists(archiveDir),
 echo "Loading outbox..."
 let outbox = readFile(archiveDir & "/outbox.json").parseJson.summary
 
-case openMode:
+case openMode.get():
   of rand:
     let tootIdx = rand(outbox.totalToots - 1)
     echo "Reading toot number ", tootIdx
@@ -138,3 +149,9 @@ case openMode:
   of toot:
     let tootIdx = paramStr(2).parseInt
     outbox.toots.at(tootIdx).show
+  of tootrange:
+    let tRange = paramStr(2).split('-').map(parseInt)
+    assertInit(tRange.len() == 2,
+               "error: range must have exactly two indexes")
+    for idx in tRange[0]..tRange[1]:
+      outbox.toots.at(idx).show
