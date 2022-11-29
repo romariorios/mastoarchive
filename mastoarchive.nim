@@ -1,3 +1,4 @@
+# std imports
 import os
 import std/json
 import std/htmlparser
@@ -7,6 +8,9 @@ import std/sequtils
 import std/strutils
 import std/xmltree
 
+# external libs
+import nigui
+
 proc assertInit(success: bool, errMsg: string) =
   if not success:
     echo errMsg
@@ -14,7 +18,7 @@ proc assertInit(success: bool, errMsg: string) =
 
 type
   OpenMode = enum
-    rand, loop, toot, tootrange
+    rand, loop, toot, tootrange, gui
 
 type
   AttachmentData = object
@@ -72,35 +76,36 @@ proc at(toots: JsonNode, idx: int): Toot =
 
   Toot(published: data.published, obj: obj)
 
-proc show(toot: Toot) =
+proc toText(toot: Toot): string =
   let obj = toot.obj
+  result.add("======\n")
 
-  echo "======"
   case obj.kind:
     of tkToot:
       let data = obj.toot
       let contentHtml = data.content.parseHtml
 
-      echo "id: ", data.id
-      data.summary.map(proc(cw: string) = echo "cw: ", cw)
+      result.add("id: " & data.id & "\n")
+      if data.summary.isSome:
+        result.add("cw: " & data.summary.get() & "\n")
 
       for para in contentHtml:
-        echo para.innerText
+        result.add(para.innerText & "\n")
 
       if data.attachment.len > 0:
-        echo "attachments:"
+        result.add("attachments:\n")
       for att in data.attachment:
-        echo "- description: ", att.name, "; url: ", att.url
+        result.add("- description: " & att.name & "; url: " & att.url & "\n")
 
-      data.inReplyTo.map(proc(r: string) = echo "in reply to: ", r)
+      if data.inReplyTo.isSome:
+        result.add("in reply to: " & data.inReplyTo.get() & "\n")
     of tkBoost:
-      echo "boosted: ", obj.boostedUrl
-  echo "at: ", toot.published
-  echo "======"
+      result.add("boost: " & obj.boostedUrl & "\n")
+  result.add("at: " & toot.published & "\n======\n")
 
 let
   usageText = "usage: " & paramStr(0) &
-    " [rand|loop|toot <tootNum>|tootrange <from>-<to>] " &
+    " [rand|loop|toot <tootNum>|tootrange <from>-<to>|gui] " &
     "<path to archive dir>"
 
 # ===
@@ -116,6 +121,7 @@ let openMode =
     of "loop": some(loop)
     of "toot": some(toot)
     of "tootrange": some(tootrange)
+    of "gui": some(gui)
     else: none(OpenMode)
 
 assertInit(
@@ -140,18 +146,43 @@ case openMode.get():
     let tootIdx = rand(outbox.totalToots - 1)
     echo "Reading toot number ", tootIdx
 
-    outbox.toots.at(tootIdx).show
+    echo outbox.toots.at(tootIdx).toText
   of loop:
     while true:
       echo "Which toot do you want to see? "
       let tootIdx = stdin.readLine.parseInt
-      outbox.toots.at(tootIdx).show
+      echo outbox.toots.at(tootIdx).toText
   of toot:
     let tootIdx = paramStr(2).parseInt
-    outbox.toots.at(tootIdx).show
+    echo outbox.toots.at(tootIdx).toText
   of tootrange:
     let tRange = paramStr(2).split('-').map(parseInt)
     assertInit(tRange.len() == 2,
                "error: range must have exactly two indexes")
     for idx in tRange[0]..tRange[1]:
-      outbox.toots.at(idx).show
+      echo outbox.toots.at(idx).toText
+  of gui:
+    app.init()
+
+    var window = newWindow("Mastoarchive!")
+
+    window.width = 600.scaleToDpi
+    window.height = 400.scaleToDpi
+
+    var container = newLayoutContainer(Layout_Vertical)
+    window.add(container)
+
+    var button = newButton("Random toot")
+    container.add(button)
+
+    var textArea = newTextArea()
+    container.add(textArea)
+
+    button.onClick = proc(event: ClickEvent) =
+      let tootIdx = rand(outbox.totalToots - 1)
+      textArea.addLine("Reading toot number " & $tootIdx)
+      textArea.addLine(outbox.toots.at(tootIdx).toText)
+
+    window.show()
+
+    app.run()
