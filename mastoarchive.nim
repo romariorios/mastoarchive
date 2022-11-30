@@ -18,8 +18,68 @@ proc assertInit(success: bool, errMsg: string) =
     quit QuitFailure
 
 type
-  OpenMode = enum
-    rand, loop, toot, tootrange, gui
+  OpenModeKind = enum omRand, omLoop, omToot, omTootRange, omGui
+  OpenMode = ref object
+    case kind: OpenModeKind
+    of omRand: rand: void
+    of omLoop: loop: void
+    of omToot: tootIdx: int
+    of omTootRange:
+      tootIdxfrom, tootIdxTo: int
+    of omGui: gui: void
+
+  ProgArgs = object
+    openMode: OpenMode
+    archiveDir: string
+
+proc parseArgs(): Option[ProgArgs] =
+  if paramCount() < 1 or paramCount() > 3:
+    return none(ProgArgs)
+
+  var archiveDir: string
+  let openMode =
+    if paramCount() == 1:
+      archiveDir = paramStr(1)
+      some(omGui)
+    else:
+      case paramStr(1):
+        of "rand":
+          archiveDir = paramStr(2)
+          some(omRand)
+        of "loop":
+          archiveDir = paramStr(2)
+          some(omLoop)
+        of "toot":
+          archiveDir = paramStr(3)
+          some(omToot)
+        of "tootrange":
+          archiveDir = paramStr(3)
+          some(omTootRange)
+        of "gui":
+          archiveDir = paramStr(2)
+          some(omGui)
+        else: none(OpenModeKind)
+
+  if openMode.isNone:
+    return none(ProgArgs)
+
+  case openMode.get():
+    of omToot:
+      let idx = paramStr(2).parseInt
+      some(ProgArgs(openMode: OpenMode(kind: omToot, tootIdx: idx),
+                    archiveDir: archiveDir))
+    of omTootRange:
+      let tRange = paramStr(2).split('-').map(parseInt)
+      if tRange.len() != 2:
+        return none(ProgArgs)
+
+      some(ProgArgs(
+        openMode: OpenMode(kind: omTootRange, tootIdxFrom: tRange[0],
+                           tootIdxTo: tRange[1]),
+        archiveDir: archiveDir))
+    else:
+      some(ProgArgs(openMode: OpenMode(kind: openMode.get()),
+                    archiveDir: archiveDir))
 
 type
   AttachmentData = object
@@ -113,56 +173,34 @@ let
 
 randomize()
 
-assertInit(paramCount() == 2 or paramCount() == 3, usageText)
+let progArgs = parseArgs()
+assertInit(progArgs.isSome(), usageText)
 
-let openModeStr = paramStr(1)
-let openMode =
-  case toLowerAscii(openModeStr):
-    of "rand": some(rand)
-    of "loop": some(loop)
-    of "toot": some(toot)
-    of "tootrange": some(tootrange)
-    of "gui": some(gui)
-    else: none(OpenMode)
-
-assertInit(
-  openMode.isSome,
-  "error: invalid mode " & openModeStr & "\n" & usageText)
-
-let archiveDir = paramStr(
-  case openMode.get():
-    of toot: 3
-    of tootrange: 3
-    else: 2
-)
-
+let archiveDir = progArgs.get().archiveDir
 assertInit(dirExists(archiveDir),
   "error: \"" & archiveDir & "\" is not a directory")
 
 echo "Loading outbox..."
 let outbox = readFile(archiveDir & "/outbox.json").parseJson.summary
+let openMode = progArgs.get().openMode
 
-case openMode.get():
-  of rand:
+case openMode.kind:
+  of omRand:
     let tootIdx = rand(outbox.totalToots - 1)
     echo "Reading toot number ", tootIdx
 
     echo outbox.toots.at(tootIdx).toText
-  of loop:
+  of omLoop:
     while true:
       echo "Which toot do you want to see? "
       let tootIdx = stdin.readLine.parseInt
       echo outbox.toots.at(tootIdx).toText
-  of toot:
-    let tootIdx = paramStr(2).parseInt
-    echo outbox.toots.at(tootIdx).toText
-  of tootrange:
-    let tRange = paramStr(2).split('-').map(parseInt)
-    assertInit(tRange.len() == 2,
-               "error: range must have exactly two indexes")
-    for idx in tRange[0]..tRange[1]:
+  of omToot:
+    echo outbox.toots.at(openMode.tootIdx).toText
+  of omTootRange:
+    for idx in openMode.tootIdxFrom..openMode.tootIdxTo:
       echo outbox.toots.at(idx).toText
-  of gui:
+  of omGui:
     app.init()
 
     var window = newWindow("Mastoarchive!")
