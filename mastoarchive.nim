@@ -4,6 +4,7 @@ import std/json
 import std/htmlparser
 import std/options
 import std/random
+import std/re
 import std/sequtils
 import std/strutils
 import std/xmltree
@@ -172,16 +173,68 @@ case openMode.get():
     var container = newLayoutContainer(Layout_Vertical)
     window.add(container)
 
-    var button = newButton("Random toot")
-    container.add(button)
+    var modeCombo = newComboBox(@["Random", "Select toot"])
+    container.add(modeCombo)
+
+    var modeContainers: seq[LayoutContainer]
+
+    var randContainer = newLayoutContainer(Layout_Horizontal)
+    container.add(randContainer)
+    modeContainers.add(randContainer)
+
+    var randButton = newButton("Random toot")
+    randContainer.add(randButton)
+
+    var tootContainer = newLayoutContainer(Layout_Horizontal)
+    container.add(tootContainer)
+    modeContainers.add(tootContainer)
+
+    var tootIdxLabel = newLabel("Toot index:")
+    tootContainer.add(tootIdxLabel)
+
+    var tootIdx = newTextBox()
+    tootContainer.add(tootIdx)
+
+    tootIdx.onTextChange = proc(e: TextChangeEvent) =
+      tootIdx.text = tootIdx.text.replace(re"[^0-9]+") # only allow numbers
+
+    var getTootButton = newButton("Get toot")
+    tootContainer.add(getTootButton)
+
+    var showSelectedMode = proc() =
+      for child in modeContainers:
+        child.hide()
+
+      modeContainers[modeCombo.index].show()
+
+    showSelectedMode()
+    modeCombo.onChange = proc(changeEvent: ComboBoxChangeEvent) =
+      showSelectedMode()
 
     var textArea = newTextArea()
     container.add(textArea)
 
-    button.onClick = proc(event: ClickEvent) =
-      let tootIdx = rand(outbox.totalToots - 1)
-      textArea.addLine("Reading toot number " & $tootIdx)
-      textArea.addLine(outbox.toots.at(tootIdx).toText)
+    var showToot = proc(idx: int) =
+      textArea.addLine("Reading toot number " & $idx)
+      textArea.addLine(outbox.toots.at(idx).toText)
+      textArea.scrollToBottom()
+
+    randButton.onClick = proc(event: ClickEvent) =
+      let idx = rand(outbox.totalToots - 1)
+      showToot(idx)
+
+    var showSelectedToot = proc() =
+      if tootIdx.text.isEmptyOrWhitespace():
+        return
+
+      let idx = tootIdx.text.parseInt()
+      showToot(idx)
+      tootIdx.text = ""
+
+    getTootButton.onClick = proc(event: ClickEvent) = showSelectedToot()
+    tootIdx.onKeyDown = proc(event: KeyboardEvent) =
+      if event.key == Key_Return:
+        showSelectedToot()
 
     window.show()
 
