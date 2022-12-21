@@ -1,4 +1,4 @@
-import ../../parseargs.nim
+import ../../masto_archive/parseargs.nim
 
 import std/options
 
