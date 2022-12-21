@@ -54,12 +54,9 @@ type
     toots: JsonNode
 
 proc summary(outboxJson: JsonNode): Outbox =
-  let o = Outbox(
+  Outbox(
     totalToots: outboxJson["totalItems"].num.int,
     toots: outboxJson["orderedItems"])
-
-  echo "This archive has ", o.totalToots, " toots"
-  o
 
 proc at(toots: JsonNode, idx: int): Toot =
   let node = toots[idx]
@@ -77,8 +74,6 @@ proc at(toots: JsonNode, idx: int): Toot =
 
 proc toText(toot: Toot): string =
   let obj = toot.obj
-  result.add("======\n")
-
   case obj.kind:
     of tkToot:
       let data = obj.toot
@@ -100,7 +95,7 @@ proc toText(toot: Toot): string =
         result.add("in reply to: " & data.inReplyTo.get() & "\n")
     of tkBoost:
       result.add("boost: " & obj.boostedUrl & "\n")
-  result.add("at: " & toot.published & "\n======\n")
+  result.add("at: " & toot.published)
 
 let
   usageText = "usage: " & paramStr(0) &
@@ -118,7 +113,6 @@ let archiveDir = progArgs.get().archiveDir
 assertInit(dirExists(archiveDir),
   "error: \"" & archiveDir & "\" is not a directory")
 
-echo "Loading outbox..."
 let outbox = readFile(archiveDir & "/outbox.json").parseJson.summary
 let openMode = progArgs.get().openMode
 
@@ -133,11 +127,13 @@ case openMode.kind:
       echo "Which toot do you want to see? "
       let tootIdx = stdin.readLine.parseInt
       echo outbox.toots.at(tootIdx).toText
+      echo "======"
   of omToot:
     echo outbox.toots.at(openMode.tootIdx).toText
   of omTootRange:
     for idx in openMode.tootIdxFrom..openMode.tootIdxTo:
       echo outbox.toots.at(idx).toText
+      echo "======"
   of omGui:
     app.init()
 

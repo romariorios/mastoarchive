@@ -61,6 +61,7 @@ proc mastoArchiveWindow*(policy: MastoArchiveWindowPolicy): Window =
   var showToot = proc(idx: int) =
     textArea.addLine("Reading toot number " & $idx)
     textArea.addLine(policy.tootText(idx))
+    textArea.addLine("======")
     textArea.scrollToBottom()
 
   randButton.onClick = proc(event: ClickEvent) =
