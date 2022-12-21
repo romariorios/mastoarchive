@@ -5,81 +5,19 @@ import std/htmlparser
 import std/options
 import std/random
 import std/re
-import std/sequtils
 import std/strutils
 import std/xmltree
 
 # external libs
 import nigui
 
+# own imports
+import parseargs
+
 proc assertInit(success: bool, errMsg: string) =
   if not success:
     echo errMsg
     quit QuitFailure
-
-type
-  OpenModeKind = enum omRand, omLoop, omToot, omTootRange, omGui
-  OpenMode = ref object
-    case kind: OpenModeKind
-    of omRand: rand: void
-    of omLoop: loop: void
-    of omToot: tootIdx: int
-    of omTootRange:
-      tootIdxfrom, tootIdxTo: int
-    of omGui: gui: void
-
-  ProgArgs = object
-    openMode: OpenMode
-    archiveDir: string
-
-proc parseArgs(): Option[ProgArgs] =
-  if paramCount() < 1 or paramCount() > 3:
-    return none(ProgArgs)
-
-  var archiveDir: string
-  let openMode =
-    if paramCount() == 1:
-      archiveDir = paramStr(1)
-      some(omGui)
-    else:
-      case paramStr(1):
-        of "rand":
-          archiveDir = paramStr(2)
-          some(omRand)
-        of "loop":
-          archiveDir = paramStr(2)
-          some(omLoop)
-        of "toot":
-          archiveDir = paramStr(3)
-          some(omToot)
-        of "tootrange":
-          archiveDir = paramStr(3)
-          some(omTootRange)
-        of "gui":
-          archiveDir = paramStr(2)
-          some(omGui)
-        else: none(OpenModeKind)
-
-  if openMode.isNone:
-    return none(ProgArgs)
-
-  case openMode.get():
-    of omToot:
-      let idx = paramStr(2).parseInt
-      some(ProgArgs(openMode: OpenMode(kind: omToot, tootIdx: idx),
-                    archiveDir: archiveDir))
-    of omTootRange:
-      let tRange = paramStr(2).split('-').map(parseInt)
-      if tRange.len() != 2:
-        return none(ProgArgs)
-
-      some(ProgArgs(
-        openMode: OpenMode(kind: omTootRange, tootIdxFrom: tRange[0],
-                           tootIdxTo: tRange[1]),
-        archiveDir: archiveDir))
-    else:
-      some(ProgArgs(openMode: OpenMode(kind: openMode.get()),
-                    archiveDir: archiveDir))
 
 type
   AttachmentData = object
@@ -173,7 +111,7 @@ let
 
 randomize()
 
-let progArgs = parseArgs()
+let progArgs = parseArgs(paramStr, paramCount())
 assertInit(progArgs.isSome(), usageText)
 
 let archiveDir = progArgs.get().archiveDir
