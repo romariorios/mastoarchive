@@ -39,11 +39,20 @@ proc mastoArchiveWindow*(policy: MastoArchiveWindowPolicy): Window =
   var tootIdx = newTextBox()
   tootContainer.add(tootIdx)
 
-  tootIdx.onTextChange = proc(e: TextChangeEvent) =
-    tootIdx.text = tootIdx.text.replace(re"[^0-9]+") # only allow numbers
-
   var getTootButton = newButton("Get toot")
   tootContainer.add(getTootButton)
+
+  proc tootIdxValid(): bool =
+    tootIdx.text.contains(re"^[0-9]+$")
+
+  # number-only filtering fails on windows
+  when not defined windows:
+    tootIdx.onTextChange = proc(e: TextChangeEvent) =
+      tootIdx.text = tootIdx.text.replace(re"[^0-9]+") # only allow numbers
+  else: # disable button on invalid input instead
+    getTootButton.enabled = false
+    tootIdx.onTextChange = proc(e: TextChangeEvent) =
+      getTootButton.enabled = tootIdxValid()
 
   var showSelectedMode = proc() =
     for child in modeContainers:
@@ -73,9 +82,10 @@ proc mastoArchiveWindow*(policy: MastoArchiveWindowPolicy): Window =
 
     let idx = tootIdx.text.parseInt()
     showToot(idx)
+
     tootIdx.text = ""
 
   getTootButton.onClick = proc(event: ClickEvent) = showSelectedToot()
   tootIdx.onKeyDown = proc(event: KeyboardEvent) =
-    if event.key == Key_Return:
+    if tootIdxValid() and event.key == Key_Return:
       showSelectedToot()
