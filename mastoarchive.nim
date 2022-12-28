@@ -1,11 +1,9 @@
 # std imports
 import os
 import std/json
-import std/htmlparser
 import std/options
 import std/random
 import std/strutils
-import std/xmltree
 
 # external libs
 import nigui
@@ -13,40 +11,12 @@ import nigui
 # own imports
 import masto_archive/gui
 import masto_archive/parseargs
+import masto_archive/tootdata
 
 proc assertInit(success: bool, errMsg: string) =
   if not success:
     echo errMsg
     quit QuitFailure
-
-type
-  AttachmentData = object
-    `type`: string
-    mediaType: string
-    url: string
-    name: string
-
-  TootObjectData = object
-    id: string
-    content: string
-    inReplyTo: Option[string]
-    summary: Option[string]
-    attachment: seq[AttachmentData]
-
-  TootData = object
-    published: string
-    `type`: string
-
-type
-  TootKind = enum tkToot, tkBoost
-  TootObject = ref object
-    case kind: TootKind
-    of tkToot: toot: TootObjectData
-    of tkBoost: boostedUrl: string
-
-  Toot = object
-    published: string
-    obj: TootObject
 
 type
   Outbox = object
@@ -71,31 +41,6 @@ proc at(toots: JsonNode, idx: int): Toot =
       else: raise newException(ValueError, "toot type unknown: " & t)
 
   Toot(published: data.published, obj: obj)
-
-proc toText(toot: Toot): string =
-  let obj = toot.obj
-  case obj.kind:
-    of tkToot:
-      let data = obj.toot
-      let contentHtml = data.content.parseHtml
-
-      result.add("id: " & data.id & "\n")
-      if data.summary.isSome:
-        result.add("cw: " & data.summary.get() & "\n")
-
-      for para in contentHtml:
-        result.add(para.innerText & "\n")
-
-      if data.attachment.len > 0:
-        result.add("attachments:\n")
-      for att in data.attachment:
-        result.add("- description: " & att.name & "; url: " & att.url & "\n")
-
-      if data.inReplyTo.isSome:
-        result.add("in reply to: " & data.inReplyTo.get() & "\n")
-    of tkBoost:
-      result.add("boost: " & obj.boostedUrl & "\n")
-  result.add("at: " & toot.published)
 
 let
   usageText = "usage: " & paramStr(0) &
